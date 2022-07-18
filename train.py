@@ -37,7 +37,7 @@ def set_requires_grad(models, requires=False):
 
 def main():
     #argparse
-    parser = argparse.ArgumentParser(description='FAZ')
+    parser = argparse.ArgumentParser(description='CLIP')
     parser.add_argument("--wandb", "-w", action="store_true", default=False, help="True -> wandb log is on ")
     args = parser.parse_args()
 
@@ -48,21 +48,20 @@ def main():
         device="cpu"
 
     
-    in_channel, out_channel = CFG.Unet.in_channel, CFG.Unet.out_channel
-    Net = LWBNAUnet.LWBNAUnet(in_channel, out_channel).to(device)
+    Net = CLIPModel().to(device)
 
     #set loss functions
-    l1_loss = nn.L1Loss().to(device)
+    # cross_entropy = nn.CrossEntropyLoss()
 
     #set optimizer
-    optimizer = torch.optim.Adam(Net.parameters(), **CFG.Unet.optimizer)
+    optimizer = torch.optim.Adam(Net.parameters(), **CFG.optimizer)
 
     #dataset
-    trans = utils.get_transform()
-    train_dataset =  utils.FAZ_Dataset(CFG.DF_PATH,is_train=True, transform=trans)
-    eval_dataset =  utils.FAZ_Dataset(CFG.DF_PATH,is_train=False, transform=trans)
-    train_loader = DataLoader(train_dataset, **CFG.Unet.dataloader.train)
-    eval_loader = DataLoader(eval_dataset, **CFG.Unet.dataloader.eval)
+    trans = utils.get_transforms()
+    tokenizer = utils.get_tokenizer()
+    train_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=True)
+    eval_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=False)
+    train_loader = DataLoader(train_dataset, **CFG.dataloader.train)
 
     #wandb
     try:
@@ -76,67 +75,36 @@ def main():
         wandb.run.log_code(".")
         wandb.watch(models=(Net), log_freq=100)
 
-
+        
     print("data_size:",len(train_loader))
-    for epoch in range(CFG.Unet.epoch):
+    for epoch in range(CFG.EPOCH):
         Net.train()
-        losses = {"L1_loss" : 0, "iou":0, "eval_L1_loss":0, "eval_iou":0}
+        losses = {"cross_entropy" : 0}
         iter = 0
         print("epoch",epoch)
-        for i , data in enumerate(train_loader):
+        for i , item in enumerate(train_loader):
             optimizer.zero_grad()
+            
+            img, cap_idx, atten_msk = item[0].to(device).float(), item[2].to(device), item[3].to(device)
+            # print(img.shape, cap_idx.shape, atten_msk.shape)
+            img_embs, text_embs  = Net(img, cap_idx, atten_msk)
 
-            img, msk = data
-            img = img.to(device).float()
-            msk = msk.to(device)
-            msk = msk.view(-1, 1, CFG.IMGSIZE, CFG.IMGSIZE).float()
-            pred = Net(img)
-            loss =  l1_loss(pred, msk)
+            loss =  utils.calc_loss(img_embs, text_embs)
 
             loss.backward()
             optimizer.step()
 
             #loss
-            losses["L1_loss"] += loss.item()
+            losses["cross_entropy"] += loss.item()
 
             #metric calc
             img = img.detach().cpu().numpy()
-            pred = pred.detach().cpu().numpy()
-            msk = msk.detach().cpu().numpy()
 
-            iou = utils.calc_IOU(pred, msk)
-            losses["iou"] += iou
+            # iou = utils.calc_IOU(pred, msk)
             iter += 1
-        losses["eval_iou"] /= iter
-        losses["eval_L1_loss"] /= iter
+        losses["cross_entropy"] /= iter
 
-        Net.eval()
-        iter = 0
-        for i, data in enumerate(eval_loader):
-            img, msk = data
-            img = img.to(device).float()
-            msk = msk.to(device)
-            msk = msk.view(-1, 1, CFG.IMGSIZE, CFG.IMGSIZE).float()
-            pred = Net(img)
-            loss =  l1_loss(pred, msk)
-
-            #loss
-            losses["eval_L1_loss"] += loss.item()
-
-            #metric calc
-            img = img.detach().cpu().numpy()
-            pred = pred.detach().cpu().numpy()
-            msk = msk.detach().cpu().numpy()
-
-            iou = utils.calc_IOU(pred, msk)
-            losses["eval_iou"] += iou
-            iter += 1
-
-        losses["eval_iou"] /= iter
-        losses["eval_L1_loss"] /= iter
-
-        img = img.transpose(0,2,3,1)
-        utils.save_figure(pred, msk, img, epoch)
+        # utils.save_results(pred, msk, img, epoch)
 
         if args.wandb:
             wandb.log(losses)
