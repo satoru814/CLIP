@@ -48,16 +48,43 @@ def make_dataframe():
     image_list = df["image"]
     image_paths = [os.path.join(CFG.DATA_PATH ,"Images" , val) for val in image_list]
     df["image_paths"] = image_paths
+    df["random"] = np.random.randint(0,10, size=len(image_list))
+    df["train"] = (df["random"]!=CFG.VAL_SET)
     df.to_csv(os.path.join(CFG.DATA_PATH, "captions.csv"))
     return None
+
+def make_assets():
+    df = pd.read_csv(CFG.DF_PATH)
+    imgs = df["image_paths"].values
+    captions = df["caption"].values
+    fig,ax = plt.subplots(3,2, figsize=(10, 8))
+    fig.suptitle("Dataset images and captions")
+    last_imgname = ""
+    i = 0
+    show_n = 0
+    while show_n < 9:
+        img_filename = imgs[i]
+        caption = captions[i]
+        if img_filename != last_imgname:
+            img = cv2.imread(img_filename)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            ax[show_n//3, show_n%2].imshow(img)
+            ax[show_n//3, show_n%2].set_title(caption, fontsize=7)
+            ax[show_n//3, show_n%2].axis("off")
+            show_n += 1
+            last_imgname = img_filename
+        else:
+            i += 1
+    plt.savefig("./assets/dataset.png")
 
 
 #Dataset
 class CLIPDataset(torch.utils.data.Dataset):
     def __init__(self, df_path=CFG.DF_PATH, tokenizer=None, transform=None, is_train=True):
         self.df = pd.read_csv(df_path)
-        self.imgs_paths = self.df["image_paths"]
-        self.captions  = self.df["caption"]
+        self.df = self.df[self.df["train"]==is_train]
+        self.img_paths = self.df["image_paths"].values
+        self.captions  = self.df["caption"].values
         self.encoded_captions = tokenizer(
             list(self.captions), padding=True, truncation=True, max_length=CFG.MAX_LENGTH
         )
@@ -66,16 +93,16 @@ class CLIPDataset(torch.utils.data.Dataset):
         else:
             self.transform = transform["eval"]
     def __getitem__(self, idx):
-        img = cv2.imread(self.imgs_paths[idx])
-        # img = img.transpose(2,0,1)
-        print(img.shape)
+        img_filename = self.img_paths[idx]
+        img = cv2.imread(img_filename)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         caption = self.captions[idx]
         if self.transform:
             img = self.transform(image=img)["image"]
         cap_idx, atten_msk = self.encoded_captions["input_ids"][idx], self.encoded_captions["attention_mask"][idx]
         cap_idx = torch.tensor(cap_idx)
         atten_msk = torch.tensor(atten_msk)
-        item = [img, caption, cap_idx, atten_msk]
+        item = [img, caption, cap_idx, atten_msk, img_filename]
         return item
     def __len__(self):
         return len(self.captions)
@@ -95,8 +122,60 @@ def get_transforms():
     }
     return trans
 
+
 def get_tokenizer():
     tokenizer = DistilBertTokenizer.from_pretrained(CFG.text_tokenizer)
     return tokenizer
-# if __name__=="__main__":
-#     make_dataframe()
+
+
+def find_matches(model, query, img_embeddings, filenames, device):
+    tokenizer = DistilBertTokenizer.from_pretrained(CFG.text_tokenizer)
+    encoded_query = tokenizer([query])
+    input_ids = torch.tensor(encoded_query["input_ids"]).to(device)
+    atten_msk = torch.tensor(encoded_query["attention_mask"]).to(device)
+    with torch.no_grad():
+        text_features = model.text_encoder(
+            input_ids=input_ids, attention_mask=atten_msk
+        )
+        text_embeddings = model.text_projection(text_features)
+
+    img_embeddings_n = F.normalize(img_embeddings, p=2, dim=-1)
+    text_embeddings_n = F.normalize(text_embeddings, p=2, dim=-1)
+
+    dot_similarity = text_embeddings_n @ img_embeddings_n.T
+    values, indices = torch.topk(dot_similarity.squeeze(0), 10)
+    matches = [filenames[idx] for idx in indices[:5]]
+    fig, ax = plt.subplots(2,3)
+    fig.suptitle(f"query : {query}", fontsize=10)
+    for i, match_file in enumerate(matches):
+        img = cv2.imread(match_file)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        ax[i//3,i%3].imshow(img)
+    plt.savefig("./assets/inference.png")
+    print("finish inference")
+
+
+def inference(model, val_loader, device, query ,weight=None):
+    if weight:
+        model.load(weight)
+    img_embeddings = []
+    filenames = []
+    model.eval()
+    with torch.no_grad():
+        for i, item in enumerate(val_loader):
+            img = item[0].to(device).float()
+            filename = item[4]
+            img_features = model.image_encoder(img)
+            img_embedding = model.image_projection(img_features)
+            img_embeddings.append(img_embedding)
+            filenames += filename
+            if i == 5:
+                break
+        img_embeddings = torch.cat(img_embeddings)
+    print("find_match call")
+    find_matches(model, query, img_embeddings, filenames, device)
+    # return model, img_embeddings, filenames
+
+
+if __name__=="__main__":
+    make_assets()

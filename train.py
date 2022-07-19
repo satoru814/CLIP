@@ -60,9 +60,9 @@ def main():
     trans = utils.get_transforms()
     tokenizer = utils.get_tokenizer()
     train_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=True)
-    eval_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=False)
+    val_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=False)
     train_loader = DataLoader(train_dataset, **CFG.dataloader.train)
-
+    val_loader = DataLoader(val_dataset, **CFG.dataloader.val)
     #wandb
     try:
         api_key = user_secrets.get_secret("WANDB")
@@ -74,19 +74,18 @@ def main():
         run = wandb.init(**CFG.wandb, settings=wandb.Settings(code_dir="."))
         wandb.run.log_code(".")
         wandb.watch(models=(Net), log_freq=100)
-
-        
+    print(len(val_loader), len(train_loader))
     print("data_size:",len(train_loader))
+    utils.inference(Net, val_loader, device, "a group of peple dancing in a party")
     for epoch in range(CFG.EPOCH):
         Net.train()
         losses = {"cross_entropy" : 0}
-        iter = 0
+        iteration = 0
         print("epoch",epoch)
         for i , item in enumerate(train_loader):
             optimizer.zero_grad()
             
             img, cap_idx, atten_msk = item[0].to(device).float(), item[2].to(device), item[3].to(device)
-            # print(img.shape, cap_idx.shape, atten_msk.shape)
             img_embs, text_embs  = Net(img, cap_idx, atten_msk)
 
             loss =  utils.calc_loss(img_embs, text_embs)
@@ -99,16 +98,17 @@ def main():
 
             #metric calc
             img = img.detach().cpu().numpy()
+            iteration += 1
 
-            # iou = utils.calc_IOU(pred, msk)
-            iter += 1
-        losses["cross_entropy"] /= iter
+        losses["cross_entropy"] /= iteration
 
         # utils.save_results(pred, msk, img, epoch)
-
         if args.wandb:
             wandb.log(losses)
-
+        
+        if CFG.inference:
+            utils.inference(Net, val_loader, device, "a group of peple dancing in a party")
+            
     torch.save(Net.state_dict(), CFG.MODEL_SAVE_PATH)
     run.finish()
 
