@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.utils import save_image, make_grid
 from torch.utils.data import DataLoader
 
 import albumentations as A
@@ -10,19 +9,15 @@ from albumentations.pytorch import ToTensorV2
 import utils
 from models.encoder import CLIPModel
 
-
-import numpy as np
 import argparse
 import time
 import os
 import sys
 from itertools import chain
 import matplotlib as plt
-from PIL import Image
 import numpy as np
 import wandb
 from config import CFG
-import random
 import argparse
 
 class CLIP():
@@ -35,9 +30,10 @@ class CLIP():
         else:
             self.device="cpu"
 
+
     def build_model(self):
         self.Net = CLIPModel().to(self.device)
-        #params
+        #paramsa
         self.params = [
             {"params": self.Net.image_encoder.parameters(), "lr": CFG.image_encoder_lr},
             {"params": self.Net.text_encoder.parameters(), "lr": CFG.text_encoder_lr},
@@ -55,6 +51,7 @@ class CLIP():
         val_dataset =  utils.CLIPDataset(CFG.DF_PATH, tokenizer, trans, is_train=False)
         self.train_loader = DataLoader(train_dataset, **CFG.dataloader.train)
         self.val_loader = DataLoader(val_dataset, **CFG.dataloader.val)
+
 
     def train(self):
         #wandb
@@ -91,12 +88,13 @@ class CLIP():
 
             if self.wandb_key:
                 wandb.log(losses)
-                
+
         self.save()
 
         if self.wandb_key:
             run.finish()
-            
+
+
     def inference(self, query=CFG.test_query ,weight=None):
         if weight:
             self.Net.load(weight)

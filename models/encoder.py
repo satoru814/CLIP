@@ -32,7 +32,7 @@ class TextEncoder(nn.Module):
 
 
 class ProjectionHead(nn.Module):
-    def __init__(self, embedding_dim, projection_dim=CFG.projection_dim, dropout=0.3):
+    def __init__(self, embedding_dim, projection_dim=CFG.projection_dim, dropout=CFG.dropout):
         super().__init__()
         self.projection = nn.Sequential(nn.Linear(embedding_dim, projection_dim),
                                         nn.GELU(),
