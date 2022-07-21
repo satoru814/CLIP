@@ -53,6 +53,7 @@ def make_dataframe():
     df.to_csv(os.path.join(CFG.DATA_PATH, "captions.csv"))
     return None
 
+
 def make_assets():
     df = pd.read_csv(CFG.DF_PATH)
     imgs = df["image_paths"].values
@@ -143,37 +144,16 @@ def find_matches(model, query, img_embeddings, filenames, device):
     text_embeddings_n = F.normalize(text_embeddings, p=2, dim=-1)
 
     dot_similarity = text_embeddings_n @ img_embeddings_n.T
-    values, indices = torch.topk(dot_similarity.squeeze(0), 10)
-    matches = [filenames[idx] for idx in indices[:5]]
+    values, indices = torch.topk(dot_similarity.squeeze(0), 30)
+    matches = [filenames[idx] for idx in indices[::5]]
     fig, ax = plt.subplots(2,3)
     fig.suptitle(f"query : {query}", fontsize=10)
     for i, match_file in enumerate(matches):
         img = cv2.imread(match_file)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        ax[i//3,i%3].imshow(img)
+        ax[i//3, i%3].imshow(img)
     plt.savefig("./assets/inference.png")
     print("finish inference")
-
-
-def inference(model, val_loader, device, query ,weight=None):
-    if weight:
-        model.load(weight)
-    img_embeddings = []
-    filenames = []
-    model.eval()
-    with torch.no_grad():
-        for i, item in enumerate(val_loader):
-            img = item[0].to(device).float()
-            filename = item[4]
-            img_features = model.image_encoder(img)
-            img_embedding = model.image_projection(img_features)
-            img_embeddings.append(img_embedding)
-            filenames += filename
-            if i == 5:
-                break
-        img_embeddings = torch.cat(img_embeddings)
-    print("find_match call")
-    find_matches(model, query, img_embeddings, filenames, device)
     # return model, img_embeddings, filenames
 
 

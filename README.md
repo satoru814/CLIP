@@ -12,7 +12,7 @@ CLIP can do projection sentence and image to same dimention and compaire them.
 ## Datasets
 Dataset(image-caption) pair for training and validation is made from Flickr 8k dataset(https://www.kaggle.com/datasets/adityajn105/flickr8k).
 Its collection for sentence-basead image description and search, consist of 8000 images that are each paired.
-Pair is chosen from six differenct original Flickr group, and tend not to contain any well-kwnon peple or locations.
+The pair is chosen from six differenct original Flickr group, and tend not to contain any well-kwnon peple or locations.
 <p align="center">
 <img src="./assets/dataset.png" width="400" height="300"/>
 </p> \
