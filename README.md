@@ -1,4 +1,7 @@
 # CLIP 
+<p align="center">
+<img src="./assets/model_description.png" width="600"/>
+</p> 
 
 # Introduction
 CLIP implementation.
@@ -7,7 +10,7 @@ CLIP can do projection sentence and image to same dimention and compaire them.
 
 # Results
 <p align="center">
-<img src="./assets/inference.png" width="400" height="200"/>
+<img src="./assets/inference.png" width="600" />
 </p> 
 
 
@@ -46,7 +49,7 @@ and unzip them.
 
 
 <p align="center">
-<img src="./assets/dataset.png" width="400" height="300"/>
+<img src="./assets/dataset.png" width="600"/>
 </p> 
 
 ## Train
