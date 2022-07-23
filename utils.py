@@ -5,11 +5,9 @@ from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import glob
 import os
 import sys
 import cv2
-import json
 from concurrent import futures
 import torch
 import torch.nn as nn
@@ -144,11 +142,13 @@ def find_matches(model, query, img_embeddings, filenames, device):
     text_embeddings_n = F.normalize(text_embeddings, p=2, dim=-1)
 
     dot_similarity = text_embeddings_n @ img_embeddings_n.T
-    values, indices = torch.topk(dot_similarity.squeeze(0), 30)
+    values, indices = torch.topk(dot_similarity.squeeze(0), 50)
     matches = [filenames[idx] for idx in indices[::5]]
     fig, ax = plt.subplots(2,3)
     fig.suptitle(f"query : {query}", fontsize=10)
     for i, match_file in enumerate(matches):
+        if i >= 6:
+            break
         img = cv2.imread(match_file)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         ax[i//3, i%3].imshow(img)

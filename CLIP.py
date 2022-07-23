@@ -23,7 +23,7 @@ import argparse
 class CLIP():
     def __init__(self, args):
         # self.data_dir = args.data_dir
-        self.wandb_key = args.wandb_key
+        self.wandb = args.wandb
         self.save_weight = args.save_weight
         if torch.cuda.is_available():
             self.device="cuda"
@@ -55,7 +55,7 @@ class CLIP():
 
     def train(self):
         #wandb
-        if self.wandb_key:
+        if self.wandb:
             run = wandb.init(**CFG.wandb, settings=wandb.Settings(code_dir="."))
             wandb.watch(models=(self.Net), log_freq=100)
 
@@ -86,12 +86,12 @@ class CLIP():
 
             losses["cross_entropy"] /= iteration
 
-            if self.wandb_key:
+            if self.wandb:
                 wandb.log(losses)
 
         self.save()
 
-        if self.wandb_key:
+        if self.wandb:
             run.finish()
 
 

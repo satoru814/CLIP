@@ -8,7 +8,7 @@ class CFG:
             "name":"test",
             "notes":"test"}
 
-    EPOCH = 1
+    EPOCH = 5
     IMG_SIZE = 224
     MAX_LENGTH = 200
     VAL_SET = 1
